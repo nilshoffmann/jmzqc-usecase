@@ -1,6 +1,15 @@
 package org.lifstools.jmzqc.usecase;
 
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.Range;
 import com.networknt.schema.ValidationMessage;
 import io.github.msdk.MSDKException;
@@ -12,7 +21,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -27,6 +38,8 @@ import org.lifstools.jmzqc.AnalysisSoftware;
 import org.lifstools.jmzqc.BaseQuality;
 import org.lifstools.jmzqc.ControlledVocabulary;
 import org.lifstools.jmzqc.Converter;
+import static org.lifstools.jmzqc.Converter.toJsonString;
+import org.lifstools.jmzqc.Coordinate;
 import org.lifstools.jmzqc.CvParameter;
 import org.lifstools.jmzqc.InputFile;
 import org.lifstools.jmzqc.Metadata;
@@ -42,16 +55,16 @@ public class JmzqcUsecase {
     public static void main(String[] args) {
         var outputDir = new File("MTBLS1375");
         outputDir.mkdirs();
-//        try {
-//            var cmd = "wget -r -l 1 -A .mzML --reject 'index.html*' -P MTBLS1375 -np -nd -nH --cut-dirs=6 -e robots=off https://ftp.ebi.ac.uk/pub/databases/metabolights/studies/public/MTBLS1375/";
-//            var pb = new ProcessBuilder(cmd.split(" "));
-//            System.out.println("Running command: " + pb.command());
-//            pb.inheritIO();
-//            Process p = pb.start();
-//            p.waitFor();
-//        } catch (IOException | InterruptedException ex) {
-//            System.err.println("Exception:" + ex.getLocalizedMessage());
-//        }
+        try {
+            var cmd = "wget -r -l 1 -A .mzML --reject 'index.html*' -P MTBLS1375 -nc -np -nd -nH --cut-dirs=6 -e robots=off https://ftp.ebi.ac.uk/pub/databases/metabolights/studies/public/MTBLS1375/";
+            var pb = new ProcessBuilder(cmd.split(" "));
+            System.out.println("Running command: " + pb.command());
+            pb.inheritIO();
+            Process p = pb.start();
+            p.waitFor();
+        } catch (IOException | InterruptedException ex) {
+            System.err.println("Exception:" + ex.getLocalizedMessage());
+        }
 
         List<MzMLRawDataFile> mzMLData = Collections.emptyList();
         try {
@@ -68,24 +81,17 @@ public class JmzqcUsecase {
             System.err.println("Exception:" + ex.getLocalizedMessage());
         }
         var mzMLFormatParameter = new CvParameter("MS:1000584", null, "mzML format", null);
-
-        var fileConversionSoftwareParameter1 = new CvParameter("MS:1000678", null, "MassHunter Data Acquisition", "8.0");
-        var fileConversionSoftwareParameter2 = new CvParameter("MS:1000615", null, "ProteoWizard software", "3.0.19190");
-        var fileConversionSoftwareParameter3 = new CvParameter("MS:1000799", null, "custom unreleased software tool", "jmzqc 1.0.0-RC1");
-        Map<InputFile, List<QualityMetric>> mzMLFileStats = mzMLData.parallelStream().map((t) -> {
+        Map<InputFile, List<QualityMetric>> mzMLFileStats = mzMLData.stream().map((t) -> {
             System.out.println("Processing file: " + t.getName());
 
             var precursorMzRange = t.getChromatograms().stream().filter(chrom -> chrom.getChromatogramType() == ChromatogramType.MRM_SRM).map(chrom -> {
                 var mzr = Range.singleton(chrom.getIsolations().get(0).getPrecursorMz());
-//                System.out.println("Chromatogram m/z range: " + mzr);
                 return mzr;
             }).filter(range -> range != null && !range.isEmpty()).reduce((l, r) -> l.span(r)).orElse(Range.singleton(0.0));
             var precursorMzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(precursorMzRange.lowerEndpoint(), precursorMzRange.upperEndpoint()), null);
-
             var numberOfChromatogramsMetric = new QualityMetric("MS:4000071", null, "number of chromatograms", t.getChromatograms().stream().filter(chrom -> chrom.getChromatogramType() == ChromatogramType.MRM_SRM).count(), null);
             var rtRange = t.getChromatograms().stream().map(
                     chrom -> {
-//                        System.out.println("Chromatogram RT range: " + chrom.getRtRange());
                         return chrom.getRtRange();
                     }
             ).reduce(
@@ -95,8 +101,6 @@ public class JmzqcUsecase {
             return new SimpleEntry<InputFile, List<QualityMetric>>(
                     new InputFile(mzMLFormatParameter, Collections.emptyList(), t.getOriginalFile().get().toURI(), t.getName()),
                     Arrays.asList(
-                            //                            nms1,
-                            //                            nms2,
                             numberOfChromatogramsMetric,
                             precursorMzRangeMetric,
                             rtRangeMetric
@@ -128,7 +132,9 @@ public class JmzqcUsecase {
                     "1.0.0");
             Set<ValidationMessage> messages = Converter.validate(mzQC);
             System.out.println("Validation messages: " + messages);
-            Converter.toJsonFile(mzQC, new File("MTBLS1375.mzqc"));
+
+            ObjectWriter writer = prepareJsonWriter();
+            writer.writeValue(new File("MTBLS1375.mzQC"), new Coordinate(mzQC));
         } catch (URISyntaxException ex) {
             Logger.getLogger(JmzqcUsecase.class.getName()).log(Level.SEVERE, null, ex);
         } catch (JsonProcessingException ex) {
@@ -137,6 +143,26 @@ public class JmzqcUsecase {
             Logger.getLogger(JmzqcUsecase.class.getName()).log(Level.SEVERE, null, ex);
         }
 
+    }
+
+    public static ObjectWriter prepareJsonWriter() {
+        JsonFactoryBuilder jfb = new JsonFactoryBuilder().
+                enable(JsonReadFeature.ALLOW_TRAILING_COMMA);
+        ObjectMapper mapper = new ObjectMapper(jfb.build());
+        mapper.findAndRegisterModules();
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(SerializationFeature.INDENT_OUTPUT, true);
+        mapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+        SimpleModule module = new SimpleModule();
+        module.addDeserializer(OffsetDateTime.class, new JsonDeserializer<OffsetDateTime>() {
+            @Override
+            public OffsetDateTime deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException, JsonProcessingException {
+                String value = jsonParser.getText();
+                return Converter.parseDateTimeString(value);
+            }
+        });
+        mapper.registerModule(module);
+        return mapper.writerFor(Coordinate.class);
     }
 
 }
