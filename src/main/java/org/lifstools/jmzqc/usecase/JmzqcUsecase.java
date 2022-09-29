@@ -1,5 +1,6 @@
 package org.lifstools.jmzqc.usecase;
 
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -21,9 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -38,7 +37,6 @@ import org.lifstools.jmzqc.AnalysisSoftware;
 import org.lifstools.jmzqc.BaseQuality;
 import org.lifstools.jmzqc.ControlledVocabulary;
 import org.lifstools.jmzqc.Converter;
-import static org.lifstools.jmzqc.Converter.toJsonString;
 import org.lifstools.jmzqc.Coordinate;
 import org.lifstools.jmzqc.CvParameter;
 import org.lifstools.jmzqc.InputFile;
@@ -153,6 +151,8 @@ public class JmzqcUsecase {
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.configure(SerializationFeature.INDENT_OUTPUT, true);
         mapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+        mapper.setSerializationInclusion(Include.NON_EMPTY);
+        
         SimpleModule module = new SimpleModule();
         module.addDeserializer(OffsetDateTime.class, new JsonDeserializer<OffsetDateTime>() {
             @Override
