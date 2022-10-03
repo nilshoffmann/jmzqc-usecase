@@ -10,6 +10,10 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <exec.mainClass>org.lifstools.jmzqc.usecase.JmzqcUsecase</exec.mainClass>
+        <docker.base.image>eclipse-temurin</docker.base.image>
+        <docker.base.image.version>17-jdk-alpine</docker.base.image.version>
+        <!-- also add the trailing / here if you add a custom prefix -->
+        <docker.image.prefix></docker.image.prefix>
     </properties>
     <dependencies>
         <dependency>
@@ -18,14 +22,14 @@
             <version>1.0.0-RC1</version>
         </dependency>
         <dependency>
-            <groupId>commons-net</groupId>
-            <artifactId>commons-net</artifactId>
-            <version>3.8.0</version>
-        </dependency>
-        <dependency>
             <groupId>io.github.msdk</groupId>
             <artifactId>msdk-io-mzml</artifactId>
             <version>0.0.27</version>
+        </dependency>
+        <dependency>
+            <groupId>org.knowm.xchart</groupId>
+            <artifactId>xchart</artifactId>
+            <version>3.8.2</version>
         </dependency>
     </dependencies>
     <repositories>
@@ -38,4 +42,39 @@
             <url>https://www.ebi.ac.uk/Tools/maven/repos/content/groups/ebi-repo/</url>
         </repository>
     </repositories>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>3.3.0</version>
+                    <configuration>
+                        <from>
+                            <image>${docker.base.image}:${docker.base.image.version}</image>
+                        </from>
+                        <to>
+                            <image>${docker.image.prefix}${project.artifactId}</image>
+                            <tags>
+                                <tag>${project.version}</tag>
+                                <tag>latest</tag>
+                            </tags>
+                        </to>
+                        <container>
+                            <jvmFlags>
+                                <jvmFlag>-Djava.security.egd=file:/dev/./urandom</jvmFlag>
+                            </jvmFlags>
+                            <volumes>
+                                <volume>/tmp</volume>
+                            </volumes>
+                            <!--<user>1000:1000</user>-->
+                            <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+                            <mainClass>org.lifstools.jmzqc.usecase.JmzqcProteomics</mainClass>
+                        </container>
+                        <allowInsecureRegistries>false</allowInsecureRegistries>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>
