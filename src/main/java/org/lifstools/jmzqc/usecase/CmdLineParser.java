@@ -120,7 +120,7 @@ public class CmdLineParser {
             System.out.println(getAppInfo());
         } else {
             boolean toFile = false;
-            String outputFile = "jmzqc-out.tsv";
+            String outputFile = "jmzqc.mzQC";
             if (line.hasOption(outputToFileOpt)) {
                 toFile = true;
                 outputFile = line.getOptionValue(outputToFileOpt);
@@ -139,6 +139,8 @@ public class CmdLineParser {
                     System.out.println("Validation failed with " + messages.size() + " messages!");
                     System.out.println(messages);
                     System.exit(1);
+                } else {
+                    System.out.println("Validation successful!");
                 }
                 if (toFile) {
                     System.out.println("Saving output to '" + outputFile + "'.");

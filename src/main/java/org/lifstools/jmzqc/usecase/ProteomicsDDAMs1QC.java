@@ -43,8 +43,6 @@ public class ProteomicsDDAMs1QC {
     }
 
     public Optional<MzQC> process() throws URISyntaxException {
-        List<MzMLRawDataFile> mzMLData = Collections.emptyList();
-
         MzMLRawDataFile mzMLFile;
         try {
             mzMLFile = new MzMLFileImportMethod(inputMzML.toPath()).execute();
