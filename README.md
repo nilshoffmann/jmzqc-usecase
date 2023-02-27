@@ -3,7 +3,7 @@
 
 ## Building the Docker Container
 
-  ./mvnw jib:dockerBuild
+ ./mvnw -B jib:dockerBuild --file pom.xml
 
 ## Runing the Docker Container
 
