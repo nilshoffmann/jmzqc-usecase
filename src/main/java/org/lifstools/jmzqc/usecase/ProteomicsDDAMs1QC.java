@@ -72,7 +72,7 @@ public class ProteomicsDDAMs1QC {
                 }
         ).orElse(new SimpleEntry<>(new float[0], new float[0]));
         var totalIonChromatogram = new QualityMetric(
-                "MS:1000235",
+                "MS:4000104",
                 null,
                 "total ion current chromatogram",
                 ticValuesAndRts.getValue(), new Unit(new CvParameter("UO:0000010", null, "second", ticValuesAndRts.getKey()), null));
