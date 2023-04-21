@@ -222,7 +222,7 @@ public class CmdLineParser {
 
     protected static String addFileInputOption(Options options) {
         String fileOpt = "file";
-        options.addOption("f", fileOpt, true, "Input a file name to read from for lipid name for parsing. Each lipid name must be on a separate line.");
+        options.addOption("f", fileOpt, true, "Input file name to process.");
         return fileOpt;
     }
 

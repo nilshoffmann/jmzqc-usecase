@@ -61,6 +61,13 @@ public class ProteomicsDDAMs1QC {
         ).reduce(
                 (l, r) -> l.span(r)
         ).orElse(Range.singleton(Double.NaN));
+        
+        var tic = mzMLFile.getScans().stream().filter(
+                scan -> scan.getMsLevel() == 1
+        ).map(
+                scan -> scan.getTIC()
+        ).toList();
+        
 
         var ms1MzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()), null);
         System.out.println("TIC and RT values...");
@@ -75,7 +82,7 @@ public class ProteomicsDDAMs1QC {
                 "MS:4000104",
                 null,
                 "total ion current chromatogram",
-                ticValuesAndRts.getValue(), new Unit(new CvParameter("UO:0000010", null, "second", ticValuesAndRts.getKey()), null));
+                tic, new Unit(new CvParameter("UO:0000010", null, "second", ticValuesAndRts.getKey()), null));
         var numberOfChromatogramsMetric = new QualityMetric("MS:4000071", null, "number of chromatograms", mzMLFile.getChromatograms().stream().count(), null);
         System.out.println("RT range...");
         var rtRange = mzMLFile.getScans().stream().map(
