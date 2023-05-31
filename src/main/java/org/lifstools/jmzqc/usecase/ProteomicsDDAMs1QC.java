@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -43,6 +44,13 @@ public class ProteomicsDDAMs1QC {
         this.inputMzML = inputMzML;
     }
 
+    public static class TicTable {
+        List<Float> tic = new ArrayList<>();
+        List<Float> rt = new ArrayList<>();
+        List<String> nativeSpectrumIdentifier = new ArrayList<>();
+        List<Integer> nPeaks = new ArrayList<>();
+    }
+
     public Optional<MzQC> process() throws URISyntaxException {
         MzMLRawDataFile mzMLFile;
         try {
@@ -63,51 +71,32 @@ public class ProteomicsDDAMs1QC {
                 (l, r) -> l.span(r)
         ).orElse(Range.singleton(Double.NaN));
 
-        var tic = mzMLFile.getScans().stream().filter(
-                scan -> scan.getMsLevel() == 1
-        ).map(
-                scan -> scan.getTIC()
-        ).toList();
+        System.out.println("TIC and RT values...");
 
-        var rt = mzMLFile.getScans().stream().filter(
+        final TicTable ticTable = new TicTable();
+        mzMLFile.getScans().stream().filter(
                 scan -> scan.getMsLevel() == 1
-        ).map(
-                scan -> scan.getRetentionTime()
-        ).toList();
-
-        var nativeSpectrumIdentifier = mzMLFile.getScans().stream().filter(
-                scan -> scan.getMsLevel() == 1
-        ).map(
-                scan -> "scan=" + scan.getScanNumber()
-        ).toList();
-
-        var nPeaks = mzMLFile.getScans().stream().filter(
-                scan -> scan.getMsLevel() == 1
-        ).map(
-                scan -> scan.getNumberOfDataPoints()
-        ).toList();
+        ).forEach(
+            scan -> {
+                ticTable.tic.add(scan.getTIC());
+                ticTable.rt.add(scan.getRetentionTime());
+                ticTable.nativeSpectrumIdentifier.add("scan=" + scan.getScanNumber());
+                ticTable.nPeaks.add(scan.getNumberOfDataPoints());
+            }
+        );
 
         var ms1MzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()), null);
-        System.out.println("TIC and RT values...");
-        var ticValuesAndRts = mzMLFile.getChromatograms().stream().filter(
-                chrom -> chrom.getChromatogramType() == ChromatogramType.TIC
-        ).findFirst().map(
-                chrom -> {
-                    return new SimpleEntry<>(chrom.getRetentionTimes(), chrom.getIntensityValues());
-                }
-        ).orElse(new SimpleEntry<>(new float[0], new float[0]));
-
-        var ticTable = new LinkedHashMap<String, List<?>>();
-        ticTable.put("MS:4000104", tic);
-        ticTable.put("MS:1000894", rt);
-        ticTable.put("MS:1000767", nativeSpectrumIdentifier);
-        ticTable.put("MS:1003059", nPeaks);
+        var ticTableMap = new LinkedHashMap<String, List<?>>();
+        ticTableMap.put("MS:4000104", ticTable.tic);
+        ticTableMap.put("MS:1000894", ticTable.rt);
+        ticTableMap.put("MS:1000767", ticTable.nativeSpectrumIdentifier);
+        ticTableMap.put("MS:1003059", ticTable.nPeaks);
 
         var totalIonChromatogram = new QualityMetric(
                 "MS:4000104",
                 null,
                 "total ion currents",
-                ticTable, null);
+                ticTableMap, null);
         var numberOfChromatogramsMetric = new QualityMetric("MS:4000071", null, "number of chromatograms", mzMLFile.getChromatograms().stream().count(), null);
         System.out.println("RT range...");
         var rtRange = mzMLFile.getScans().stream().map(
@@ -141,6 +130,11 @@ public class ProteomicsDDAMs1QC {
                                 "Proteomics Standards Initiative Mass Spectrometry Ontology",
                                 new URI("https://github.com/HUPO-PSI/psi-ms-CV/releases/download/v4.1.103/psi-ms.obo"),
                                 "4.1.103"
+                        ),
+                        new ControlledVocabulary(
+                                "Unit Ontology",
+                                new URI("https://raw.githubusercontent.com/bio-ontology-research-group/unit-ontology/master/unit.obo"),
+                                "f9ff25b"
                         )
                 ),
                 OffsetDateTime.now(),
