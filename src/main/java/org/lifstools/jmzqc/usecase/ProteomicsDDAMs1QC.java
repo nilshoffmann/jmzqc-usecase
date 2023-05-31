@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -61,13 +62,30 @@ public class ProteomicsDDAMs1QC {
         ).reduce(
                 (l, r) -> l.span(r)
         ).orElse(Range.singleton(Double.NaN));
-        
+
         var tic = mzMLFile.getScans().stream().filter(
                 scan -> scan.getMsLevel() == 1
         ).map(
                 scan -> scan.getTIC()
         ).toList();
-        
+
+        var rt = mzMLFile.getScans().stream().filter(
+                scan -> scan.getMsLevel() == 1
+        ).map(
+                scan -> scan.getRetentionTime()
+        ).toList();
+
+        var nativeSpectrumIdentifier = mzMLFile.getScans().stream().filter(
+                scan -> scan.getMsLevel() == 1
+        ).map(
+                scan -> "scan=" + scan.getScanNumber()
+        ).toList();
+
+        var nPeaks = mzMLFile.getScans().stream().filter(
+                scan -> scan.getMsLevel() == 1
+        ).map(
+                scan -> scan.getNumberOfDataPoints()
+        ).toList();
 
         var ms1MzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()), null);
         System.out.println("TIC and RT values...");
@@ -78,11 +96,18 @@ public class ProteomicsDDAMs1QC {
                     return new SimpleEntry<>(chrom.getRetentionTimes(), chrom.getIntensityValues());
                 }
         ).orElse(new SimpleEntry<>(new float[0], new float[0]));
+
+        var ticTable = new LinkedHashMap<String, List<?>>();
+        ticTable.put("MS:4000104", tic);
+        ticTable.put("MS:1000894", rt);
+        ticTable.put("MS:1000767", nativeSpectrumIdentifier);
+        ticTable.put("MS:1003059", nPeaks);
+
         var totalIonChromatogram = new QualityMetric(
                 "MS:4000104",
                 null,
-                "total ion current chromatogram",
-                tic, new Unit(new CvParameter("UO:0000010", null, "second", ticValuesAndRts.getKey()), null));
+                "total ion currents",
+                ticTable, null);
         var numberOfChromatogramsMetric = new QualityMetric("MS:4000071", null, "number of chromatograms", mzMLFile.getChromatograms().stream().count(), null);
         System.out.println("RT range...");
         var rtRange = mzMLFile.getScans().stream().map(
@@ -90,6 +115,7 @@ public class ProteomicsDDAMs1QC {
         ).reduce(
                 (lrt, rrt) -> lrt.span(rrt)
         ).get();
+
         var rtRangeMetric = new QualityMetric("MS:4000070", null, "retention time acquisition range", Arrays.asList(rtRange.lowerEndpoint(), rtRange.upperEndpoint()), new Unit(new CvParameter("UO:0000010", null, "second", null), null));
 
         var qualityMetrics = Arrays.asList(
@@ -118,7 +144,7 @@ public class ProteomicsDDAMs1QC {
                         )
                 ),
                 OffsetDateTime.now(),
-                "MzQC for basic QC information on MetaboLights dataset MTBLS1375",
+                "MzQC for basic TIC QC information",
                 bqs,
                 Collections.emptyList(),
                 "1.0.0");
