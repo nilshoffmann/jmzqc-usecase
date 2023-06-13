@@ -8,6 +8,7 @@ import com.google.common.collect.Range;
 import io.github.msdk.MSDKException;
 import io.github.msdk.datamodel.ChromatogramType;
 import io.github.msdk.io.mzml.MzMLFileImportMethod;
+import io.github.msdk.io.mzml.data.MzMLMsScan;
 import io.github.msdk.io.mzml.data.MzMLRawDataFile;
 import java.io.File;
 import java.net.URI;
@@ -78,16 +79,17 @@ public class ProteomicsDDAMs1QC {
                 scan -> scan.getMsLevel() == 1
         ).forEach(
             scan -> {
+                var mzMLScan = (MzMLMsScan)scan;
                 ticTable.tic.add(scan.getTIC());
                 ticTable.rt.add(scan.getRetentionTime());
-                ticTable.nativeSpectrumIdentifier.add("scan=" + scan.getScanNumber());
+                ticTable.nativeSpectrumIdentifier.add("scan=" + mzMLScan.getId());
                 ticTable.nPeaks.add(scan.getNumberOfDataPoints());
             }
         );
 
         var ms1MzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()), null);
         var ticTableMap = new LinkedHashMap<String, List<?>>();
-        ticTableMap.put("MS:4000104", ticTable.tic);
+        ticTableMap.put("MS:1000285", ticTable.tic);
         ticTableMap.put("MS:1000894", ticTable.rt);
         ticTableMap.put("MS:1000767", ticTable.nativeSpectrumIdentifier);
         ticTableMap.put("MS:1003059", ticTable.nPeaks);
