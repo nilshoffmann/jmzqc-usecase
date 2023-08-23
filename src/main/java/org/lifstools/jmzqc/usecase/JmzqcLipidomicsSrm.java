@@ -51,6 +51,7 @@ import org.lifstools.jmzqc.Unit;
  */
 public class JmzqcLipidomicsSrm {
 
+    // TODO: add base peak intensity QC term and values
     public static void main(String[] args) {
         var outputDir = new File("MTBLS1375");
         try {

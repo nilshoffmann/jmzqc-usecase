@@ -6,7 +6,6 @@ package org.lifstools.jmzqc.usecase;
 
 import com.google.common.collect.Range;
 import io.github.msdk.MSDKException;
-import io.github.msdk.datamodel.ChromatogramType;
 import io.github.msdk.io.mzml.MzMLFileImportMethod;
 import io.github.msdk.io.mzml.data.MzMLMsScan;
 import io.github.msdk.io.mzml.data.MzMLRawDataFile;
@@ -14,13 +13,17 @@ import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.OffsetDateTime;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.lifstools.jmzqc.AnalysisSoftware;
@@ -38,20 +41,21 @@ import org.lifstools.jmzqc.Unit;
  * @author Nils Hoffmann
  */
 public class ProteomicsDDAMs1QC {
-
+    
     private final File inputMzML;
-
+    
     public ProteomicsDDAMs1QC(File inputMzML) {
         this.inputMzML = inputMzML;
     }
-
+    
     public static class TicTable {
+        
         List<Float> tic = new ArrayList<>();
         List<Float> rt = new ArrayList<>();
         List<String> nativeSpectrumIdentifier = new ArrayList<>();
         List<Integer> nPeaks = new ArrayList<>();
     }
-
+    
     public Optional<MzQC> process() throws URISyntaxException {
         MzMLRawDataFile mzMLFile;
         try {
@@ -63,6 +67,13 @@ public class ProteomicsDDAMs1QC {
         var mzMLFormatParameter = new CvParameter("MS:1000584", null, "mzML format", null);
         var inputFile = new InputFile(mzMLFormatParameter, Collections.emptyList(), inputMzML.toURI(), mzMLFile.getName());
         System.out.println("Processing file: " + mzMLFile.getName());
+        System.out.println("RT range...");
+        var rtRange = mzMLFile.getScans().stream().map(
+                scan -> Range.singleton(scan.getRetentionTime())
+        ).reduce(
+                (lrt, rrt) -> lrt.span(rrt)
+        ).get();
+        
         System.out.println("MS1 mz range...");
         var ms1MzRange = mzMLFile.getScans().stream().filter(
                 scan -> scan.getMsLevel() == 1
@@ -72,50 +83,85 @@ public class ProteomicsDDAMs1QC {
                 (l, r) -> l.span(r)
         ).orElse(Range.singleton(Double.NaN));
 
-        System.out.println("TIC and RT values...");
-
+        System.out.println("TIC and Base Peak values...");
+        
         final TicTable ticTable = new TicTable();
+        final List<Float> ms1BasePeakIntensities = new ArrayList<>();
+        final Set<String> ms1BasePeakIntensityUnit = new LinkedHashSet<>(1);
+        final AtomicLong emptyMs1 = new AtomicLong();
+        Map<String, String> basePeakIntensityUnitLookup = Map.of(
+                "MS:1000131", "number of detector counts",
+                "MS:1000132", "percent of base peak",
+                "MS:1000814", "counts per second",
+                "MS:1000905", "percent of base peak times 100",
+                "UO:0000269", "absorbance unit");
         mzMLFile.getScans().stream().filter(
                 scan -> scan.getMsLevel() == 1
         ).forEach(
-            scan -> {
-                var mzMLScan = (MzMLMsScan)scan;
-                ticTable.tic.add(scan.getTIC());
-                ticTable.rt.add(scan.getRetentionTime());
-                ticTable.nativeSpectrumIdentifier.add("scan=" + mzMLScan.getId());
-                ticTable.nPeaks.add(scan.getNumberOfDataPoints());
-            }
+                scan -> {
+                    var mzMLScan = (MzMLMsScan) scan;
+                    mzMLScan.getCVParams().getCVParamsList().stream().filter(cvParam -> "MS:1000505".equals(cvParam.getAccession())).findFirst().ifPresent((t) -> {
+                        ms1BasePeakIntensities.add(Float.parseFloat(t.getValue().orElse("NaN")));
+                        if (ms1BasePeakIntensityUnit.isEmpty()) {
+                            ms1BasePeakIntensityUnit.add(t.getUnitAccession().orElse("MS:1000131"));
+                        }
+                    });
+                    
+                    ticTable.tic.add(scan.getTIC());
+                    ticTable.rt.add(scan.getRetentionTime());
+                    ticTable.nativeSpectrumIdentifier.add("scan=" + mzMLScan.getId());
+                    ticTable.nPeaks.add(scan.getNumberOfDataPoints());
+                    if (scan.getNumberOfDataPoints()==0) {
+                        emptyMs1.incrementAndGet();
+                    } else if(scan.getTIC()==0) {
+                        emptyMs1.incrementAndGet();
+                    }
+                }
         );
-
-        var ms1MzRangeMetric = new QualityMetric("MS:4000069", null, "m/z acquisition range", Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()), null);
+        
+        var ms1MzRangeMetric = new QualityMetric(
+                "MS:4000069",
+                null,
+                "m/z acquisition range",
+                Arrays.asList(ms1MzRange.lowerEndpoint(), ms1MzRange.upperEndpoint()),
+                null
+        );
+        var rtRangeMetric = new QualityMetric(
+                "MS:4000070",
+                null,
+                "retention time acquisition range",
+                Arrays.asList(rtRange.lowerEndpoint(), rtRange.upperEndpoint()),
+                new Unit(new CvParameter("UO:0000010", null, "second", null), null)
+        );
+        var ms1BasePeakIntensityUnitTerm = ms1BasePeakIntensityUnit.stream().findFirst().orElse("MS:1000131");
+        var basePeakIntensityMetric = new QualityMetric(
+                "MS:1000505",
+                null,
+                "base peak intensity",
+                ms1BasePeakIntensities,
+                new Unit(new CvParameter(ms1BasePeakIntensityUnitTerm, null, basePeakIntensityUnitLookup.getOrDefault(ms1BasePeakIntensityUnitTerm, "number of detector counts"), null), null)
+        );
         var ticTableMap = new LinkedHashMap<String, List<?>>();
         ticTableMap.put("MS:1000285", ticTable.tic);
         ticTableMap.put("MS:1000894", ticTable.rt);
         ticTableMap.put("MS:1000767", ticTable.nativeSpectrumIdentifier);
         ticTableMap.put("MS:1003059", ticTable.nPeaks);
-
+        
         var totalIonChromatogram = new QualityMetric(
                 "MS:4000104",
                 null,
                 "total ion currents",
                 ticTableMap, null);
         var numberOfChromatogramsMetric = new QualityMetric("MS:4000071", null, "number of chromatograms", mzMLFile.getChromatograms().stream().count(), null);
-        System.out.println("RT range...");
-        var rtRange = mzMLFile.getScans().stream().map(
-                scan -> Range.singleton(scan.getRetentionTime())
-        ).reduce(
-                (lrt, rrt) -> lrt.span(rrt)
-        ).get();
-
-        var rtRangeMetric = new QualityMetric("MS:4000070", null, "retention time acquisition range", Arrays.asList(rtRange.lowerEndpoint(), rtRange.upperEndpoint()), new Unit(new CvParameter("UO:0000010", null, "second", null), null));
-
+        
         var qualityMetrics = Arrays.asList(
                 numberOfChromatogramsMetric,
                 ms1MzRangeMetric,
                 rtRangeMetric,
+                basePeakIntensityMetric,
                 totalIonChromatogram
         );
-
+        
         var analysisSoftware = new AnalysisSoftware("MS:1000799", null, "custom unreleased software tool", "jmzqc", new URI("https://github.com/MS-Quality-hub/jmzqc"), "1.0.0-RC1");
         Metadata metadata = new Metadata(
                 Arrays.asList(analysisSoftware),
@@ -146,5 +192,5 @@ public class ProteomicsDDAMs1QC {
                 "1.0.0");
         return Optional.of(mzQC);
     }
-
+    
 }
