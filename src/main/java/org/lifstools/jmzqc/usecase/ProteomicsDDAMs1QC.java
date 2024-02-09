@@ -172,7 +172,7 @@ public class ProteomicsDDAMs1QC {
         );
         List<BaseQuality> bqs = Arrays.asList(new BaseQuality(metadata, qualityMetrics));
         MzQC mzQC = new MzQC(
-                "nils.hoffmann@cebitec.uni-bielefeld.de",
+                "n.hoffmann@fz-juelich.de",
                 "Nils Hoffmann",
                 Arrays.asList(
                         new ControlledVocabulary(
