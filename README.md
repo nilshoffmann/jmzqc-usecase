@@ -1,6 +1,6 @@
 # jmzqc Use Case Examples
 
-This repository contains example notebooks for the use of the [jmzQC library](https://github.com/MS-Quality-Hub/jmzqc). jmzQC is part of the [MS Quality Hub](https://ms-quality-hub.github.io/). The notebooks demonstrate the calculation of quality control metrics and the generation of mzQC files from proteomics and lipidomics datasets. The notebooks are written in Java and can be run in a Jupyter environment using the iJava kernel. Please see the Dockerfile for the required dependencies.
+This repository contains example notebooks for the use of the [jmzQC library](https://github.com/MS-Quality-Hub/jmzqc). jmzQC is part of the [MS Quality Hub](https://ms-quality-hub.github.io/). The notebooks demonstrate the calculation of quality control metrics and the generation of mzQC files from proteomics and lipidomics datasets. The notebooks are written in Java and can be run in a Jupyter environment using the Rapaio kernel. Please see the Dockerfile for the required dependencies.
 
 ## Running the Example Notebooks
 Run the example notebooks on mybinder:
@@ -48,6 +48,6 @@ Open the URL provided in the console in a web browser. Usually, it is http://127
 
 # Acknowledgements
 
-- The iJava kernel is used to run the notebooks in a Jupyter environment. The iJava kernel is licensed under the MIT License. The source code is available at https://github.com/SpencerPark/IJava
+- The Rapaio kernel is used to run the notebooks in a Jupyter environment. The Rapaio kernel is licensed under the MIT License. The source code is available at https://github.com/padreati/rapaio-jupyter-kernel 
 
 - The MyBinder Dockerfile is based on the java-notebook Dockerfile available at https://github.com/jbindinga/java-notebook

@@ -1,6 +1,6 @@
 FROM jupyter/minimal-notebook
 
-LABEL maintainer="Jeffrey Bindinga <jeffrey.bindinga@gmail.com>"
+LABEL maintainer="Nils Hoffmann <n.hoffmann@fz-juelich.de>"
 
 USER root
 
@@ -21,25 +21,25 @@ RUN apt update
 RUN apt install -y zulu21-jdk
 RUN rm zulu-repo_1.0.0-3_all.deb
 
-# Unpack and install the kernel
-RUN curl -L https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip > ijava-kernel.zip
-RUN unzip ijava-kernel.zip -d ijava-kernel \
-  && cd ijava-kernel \
-  && python3 install.py --sys-prefix
+USER $NB_USER
 
-# Install jupyter RISE extension.
-# RUN pip install jupyter_contrib-nbextensions jupyterlab-rise \
-#   && jupyter nbextension install rise --py --system \
-#   && jupyter nbextension enable rise --py --system \
-#   && jupyter contrib nbextension install --system \
-#   && jupyter nbextension enable hide_input/main
+# Download the kernel release
+RUN curl -Ls https://sh.jbang.dev | bash -s - app setup --force --fresh --verbose
+
+RUN $HOME/.jbang/bin/jbang version
+RUN $HOME/.jbang/bin/jbang trust add https://github.com/jupyter-java/
+RUN $HOME/.jbang/bin/jbang install-kernel@jupyter-java rapaio
 
 # Cleanup
-RUN rm ijava-kernel.zip
+# RUN rm ijava-kernel.zip
 
 # Add README.md and sample notebooks to the home directory.
 ADD "README.md" $HOME
 ADD "*.ipynb" $HOME/
 
-# Set user back to priviledged user.
+WORKDIR $HOME
+
+RUN jupyter trust *.ipynb
+
+# Set user back to non-privileged user.
 USER $NB_USER
