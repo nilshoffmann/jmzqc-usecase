@@ -26,7 +26,7 @@ java -jar target/jmzqc-usecase-1.0.0.jar -f 20181113_010_autoQC01.mzML -o proteo
 ./mvnw -B jib:dockerBuild --file pom.xml
 ```
 
-## Runing the Use Case Java Application Docker Container
+## Running the Proteomics Use Case Java Application Docker Container
 
 ```bash
 docker run -it --volume=$(pwd):/tmp --rm jmzqc-usecase -f /tmp/20181113_010_autoQC01.mzML -o /tmp/proteomics-usecase.mzQC

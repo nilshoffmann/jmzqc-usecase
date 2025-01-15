@@ -1,4 +1,4 @@
-FROM jupyter/minimal-notebook
+FROM quay.io/jupyter/minimal-notebook
 
 LABEL maintainer="Nils Hoffmann <n.hoffmann@fz-juelich.de>"
 
@@ -28,7 +28,7 @@ RUN curl -Ls https://sh.jbang.dev | bash -s - app setup --force --fresh --verbos
 
 RUN $HOME/.jbang/bin/jbang version
 RUN $HOME/.jbang/bin/jbang trust add https://github.com/jupyter-java/
-RUN $HOME/.jbang/bin/jbang install-kernel@jupyter-java rapaio
+RUN $HOME/.jbang/bin/jbang install-kernel@jupyter-java rapaio --java=21
 
 # Cleanup
 # RUN rm ijava-kernel.zip
