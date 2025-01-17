@@ -15,13 +15,18 @@ library(janitor)
 ```{r}
 
 fileDir <- file.path("MTBLS1375")
-fileGlob <- "*.mzML"
+ftpUrl <- "https://ftp.ebi.ac.uk/pub/databases/metabolights/studies/public/MTBLS1375/FILES/"
+download.file(paste0(ftpUrl, "1_LTR_1_A-1.mzML"), destfile = file.path(fileDir, "1_LTR_1_A-1.mzML"), method = "wget")
 
-mzML.files <- list.files(fileDir, pattern=fileGlob, full.names = T, include.dirs = T)
-mzML.files
+mzML.files <- c("MTBLS1375/1_LTR_1_A-1.mzML")
+
+# fileGlob <- "*.mzML"
+# 
+# mzML.files <- list.files(fileDir, pattern=fileGlob, full.names = T, include.dirs = T)
+# mzML.files
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Read transitions and peak areas exported from Skyline.
 
 ```{r}
 transitions <- read_csv("MTBLS1375/human_plasma_transitions.csv")
@@ -65,36 +70,88 @@ merge_all_chroms <- function(fileName) {
 ```
 
 ```{r}
-all_chroms <- mzML.files |> map(\(x) {
-  cat("Reading file:", x, "\n")
-  fh <- mzR::openMSfile(x)
-  chromIndex <- 1
-  tryCatch(
-    {
-      chromatogram(fh, chromIndex)
-      chromatogramHeader(fh, chromIndex)
-    },
-    error = function(cond) {
-      cat("Error encountered on chromatogram ", chromIndex, "\n")
-      chromHeader <- chromatogramHeader(fh, chromIndex)
-      cat("Header: ", chromHeader$chromatogramId, "\n")
-      chromatogram <- chromagoram(fh, chromIndex)
-      cat("Chrom: ", chromatogram, "\n")
-      NA
-    },
-    warning = function(cond) {
-      cat("Warning encountered on chromatogram ", chromIndex, "\n")
-      chromHeader <- chromatogramHeader(fh, chromIndex)
-      cat("Header: ", chromHeader$chromatogramId, "\n")
-      chromatogram <- chromagoram(fh, chromIndex)
-      cat("Chrom: ", chromatogram, "\n")
-      NA
-    }
-  )
-  
-})
+read_chroms_at_index <- function(mzML.files, startIndex) {
+  all_chroms <- mzML.files |> map(\(x) {
+    cat("Reading file:", x, "\n")
+    fh <- mzR::openMSfile(x)
+    # reading with index 1 throws an index out of bounds error
+    # reading with index 2 reads the chromatogramHeader for the TIC chromatogram, which is the first chromatogram in the mzML files
+    chromIndex <- startIndex
+    tryCatch(
+      {
+        chromatogram(fh, chromIndex)
+        chromHeader <- chromatogramHeader(fh, chromIndex)
+        cat(chromHeader$chromatogramId, "\n")
+      },
+      error = function(cond) {
+        cat("Error encountered for chromatogram indices ", chromIndex, "\n")
+        chromHeader <- chromatogramHeader(fh, chromIndex)
+        cat("Header: ", chromHeader$chromatogramId, "\n")
+        chromatogram <- chromagoram(fh, chromIndex)
+        cat("Chrom: ", chromatogram, "\n")
+        NA
+      },
+      warning = function(cond) {
+        cat("Warning encountered for chromatogram indices ", chromIndex, "\n")
+        chromHeader <- chromatogramHeader(fh, chromIndex)
+        cat("Header: ", chromHeader$chromatogramId, "\n")
+        chromatogram <- chromagoram(fh, chromIndex)
+        cat("Chrom: ", chromatogram, "\n")
+        NA
+      }
+    )
+    
+  }) 
+}
+
+
+# this fails
+read_chroms_at_index(mzML.files[1:1], 1)
+
+# this works (TIC)
+read_chroms_at_index(mzML.files[1:1], 2)
+
+# this reads the first non-TIC chromatogram, which should have index 2
+read_chroms_at_index(mzML.files[1:1], 3)
 
 #all_chroms <- mzML.files[1:10] |> map(\(x) merge_all_chroms(x)) |> bind_rows()
 #write_csv(all_chroms, "all-chromatogram-traces.csv")
 ```
 
+```{r}
+# let's hot patch the method to use '|' instead of '||' and disable the index correction to zero-based indexing
+setMethod("chromatogramHeader", "mzRpwiz",
+          function(object, chrom) {
+              if (missing(chrom)) {
+                  res <- object@backend$getAllChromatogramHeaderInfo()
+              } else {
+                  stopifnot(is.numeric(chrom))
+                  n <- nChrom(object)
+                  cat("n=",n,"min(chrom)=",min(chrom)," max(chrom)=",max(chrom), "\n")
+                  cat("In bounds: ", (min(chrom) < 1 | max(chrom) > n), "\n")
+                  if (min(chrom) < 1 | max(chrom) > n)
+                      stop("Index out of bound [", 1, ":", n, "]")
+                  # Not adjusting the index by -1L makes it work???
+                  # chrom <- chrom -1L
+                  cat("Not Corrected index (0-based): ", chrom, "\n")
+                  res <- object@backend$getChromatogramHeaderInfo(chrom)
+              }
+              res$chromatogramId <- as.character(res$chromatogramId)
+              res
+          })
+```
+
+```{r}
+# try again after hot patching
+# this works now
+read_chroms_at_index(mzML.files[1:1], 1:3)
+
+# this works (TIC)
+read_chroms_at_index(mzML.files[1:1], 1)
+
+# this reads the first two non-TIC chromatogram, which should have index 2 and 3
+read_chroms_at_index(mzML.files[1:1], 2:3)
+
+# this fails with index out of bounds
+read_chroms_at_index(mzML.files[1:1], 0)
+```
