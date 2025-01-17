@@ -1,0 +1,100 @@
+---
+title: "mzQC-Lipidomics-UseCase"
+format: html
+editor: visual
+---
+
+## Reading mzML files
+
+```{r}
+library(mzR)
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+
+fileDir <- file.path("MTBLS1375")
+fileGlob <- "*.mzML"
+
+mzML.files <- list.files(fileDir, pattern=fileGlob, full.names = T, include.dirs = T)
+mzML.files
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+transitions <- read_csv("MTBLS1375/human_plasma_transitions.csv")
+skylineResults <- read_csv("MTBLS1375/human_plasma_export.csv")
+```
+
+What we find in the mzMLs:
+
+```{r}
+# templateColNames <- c("index","method","tracetype","Q1",       "Q3","start","end","trace","file")
+# trace_frame <- as_tibble(data.frame(matrix(ncol = length(templateColNames), nrow = 0)))
+# colnames(trace_frame) <- templateColNames
+
+
+read_chrom <- function(fh, chrom_index) {
+  chromHeader <- chromatogramHeader(fh, chrom_index)
+  headerList <- str_split(chromHeader$chromatogramId |> str_replace_all("SRM", "method=SRM") |> str_replace_all("SIC","tracetype=SIC"), " ") |> unlist() |> str_split( "=")
+  fullChromHeader <- do.call(cbind, headerList) |> as_tibble() |> row_to_names(row_number = 1) |> mutate(index=chrom_index, Q1=as.numeric(Q1), Q3=as.numeric(Q3), start=as.numeric(start), end=as.numeric(end)) |> cbind(chromHeader) |> select(-chromatogramId)
+  chrom <- chromatogram(fh, 3)
+  colnames(chrom) <- c("time", "value")
+  chrom <- chrom |> mutate(index=chrom_index)
+  nested_chrom <- chrom |> group_by(index) |> nest()
+  
+  fullChromHeader |> left_join(nested_chrom, by=c("index")) |> relocate(index) |> mutate(file=fileName(fh)) |> rename(trace=data)
+}
+
+merge_all_chroms <- function(fileName) {
+  cat("Processing",fileName)
+  fh <- mzR::openMSfile(fileName)
+  nchroms <- nChrom(fh)
+  chroms <- 3:nchroms |> map(\(x) read_chrom(fh, x))
+  close(fh)
+  table <- bind_rows(chroms)
+  cat("...done\n")
+  return(table)
+}
+
+# chrom_2_fh <- mzR::openMSfile("MTBLS1375/1_LTR_1_A-1.mzML")
+# nChrom(chrom_2_fh)
+# chrom_2_header <- chromatogramHeader(chrom_2_fh, 487)
+```
+
+```{r}
+all_chroms <- mzML.files |> map(\(x) {
+  cat("Reading file:", x, "\n")
+  fh <- mzR::openMSfile(x)
+  chromIndex <- 1
+  tryCatch(
+    {
+      chromatogram(fh, chromIndex)
+      chromatogramHeader(fh, chromIndex)
+    },
+    error = function(cond) {
+      cat("Error encountered on chromatogram ", chromIndex, "\n")
+      chromHeader <- chromatogramHeader(fh, chromIndex)
+      cat("Header: ", chromHeader$chromatogramId, "\n")
+      chromatogram <- chromagoram(fh, chromIndex)
+      cat("Chrom: ", chromatogram, "\n")
+      NA
+    },
+    warning = function(cond) {
+      cat("Warning encountered on chromatogram ", chromIndex, "\n")
+      chromHeader <- chromatogramHeader(fh, chromIndex)
+      cat("Header: ", chromHeader$chromatogramId, "\n")
+      chromatogram <- chromagoram(fh, chromIndex)
+      cat("Chrom: ", chromatogram, "\n")
+      NA
+    }
+  )
+  
+})
+
+#all_chroms <- mzML.files[1:10] |> map(\(x) merge_all_chroms(x)) |> bind_rows()
+#write_csv(all_chroms, "all-chromatogram-traces.csv")
+```
+

@@ -3,3 +3,4 @@
 *.mzML
 /MTBLS*/
 /proteomics-*/
+.Rproj.user
