@@ -16,9 +16,12 @@ library(janitor)
 
 fileDir <- file.path("MTBLS1375")
 ftpUrl <- "https://ftp.ebi.ac.uk/pub/databases/metabolights/studies/public/MTBLS1375/FILES/"
-download.file(paste0(ftpUrl, "1_LTR_1_A-1.mzML"), destfile = file.path(fileDir, "1_LTR_1_A-1.mzML"), method = "wget")
+file1 <- paste0(ftpUrl, "1_LTR_1_A-1.mzML")
+download.file(file1, destfile = file.path(fileDir, "1_LTR_1_A-1.mzML"), method = "wget")
+file2 <- "https://gitlab.com/sneumannoffice/msdata/-/raw/devel/inst/proteomics/MRM-standmix-5.mzML.gz?ref_type=heads"
+download.file(file2, destfile = file.path(fileDir, "MRM-standmix-5.mzML.gz"), method = "wget")
 
-mzML.files <- c("MTBLS1375/1_LTR_1_A-1.mzML")
+mzML.files <- c("MTBLS1375/1_LTR_1_A-1.mzML", "MTBLS1375/MRM-standmix-5.mzML.gz")
 
 # fileGlob <- "*.mzML"
 # 
